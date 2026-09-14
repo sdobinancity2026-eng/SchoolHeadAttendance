@@ -2,8 +2,14 @@ import Link from 'next/link';
 
 export default function Home() {
   return (
-    <main className="flex min-h-screen flex-col items-center justify-center bg-slate-100 p-6">
-      <div className="w-full max-w-md space-y-6 rounded-3xl bg-white p-8 text-center shadow-xl border-t-8 border-blue-900">
+    <main 
+      className="flex min-h-screen flex-col items-center justify-center p-6 bg-cover bg-center bg-no-repeat relative"
+      style={{ backgroundImage: "url('/SdoBuilding-removebg-preview.png')" }}
+    >
+      {/* Dark overlay to ensure text contrast over the background image */}
+      <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
+
+      <div className="relative z-10 w-full max-w-md space-y-6 rounded-3xl bg-white/95 p-8 text-center shadow-2xl border-t-8 border-blue-900 backdrop-blur-md">
         
         {/* DepEd Branding Badge */}
         <div className="inline-block rounded-full bg-amber-100 px-4 py-1 text-xs font-bold text-amber-800 uppercase tracking-widest border border-amber-300">
@@ -14,7 +20,7 @@ export default function Home() {
           <h1 className="text-2xl font-black text-blue-950">
             Attendance Monitoring Portal
           </h1>
-          <p className="mt-1 text-sm font-medium text-slate-500">
+          <p className="mt-1 text-sm font-medium text-slate-600">
             Select your role to access your dashboard:
           </p>
         </div>
