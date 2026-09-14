@@ -18,26 +18,42 @@ interface AttendanceRecord {
 }
 
 export default function AdminDashboardPage() {
-  const [isAuthenticated, setIsAuthenticated] = useState(false);
-  const [pinInput, setPinInput] = useState('');
-  const [pinError, setPinError] = useState('');
+  const [isAuthenticated, setIsAuthenticated] = useState<boolean>(false);
+  const [pinInput, setPinInput] = useState<string>('');
+  const [pinError, setPinError] = useState<string>('');
 
   const [logs, setLogs] = useState<AttendanceRecord[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState<boolean>(true);
   const [filterDate, setFilterDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
 
-  const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || '1234';
+  // Fallback to '1234' if env variable is undefined or empty
+  const ADMIN_PIN = (process.env.NEXT_PUBLIC_ADMIN_PIN || '1234').trim();
+
+  // Check if session was already authenticated in this browser tab
+  useEffect(() => {
+    const authSession = sessionStorage.getItem('admin_authenticated');
+    if (authSession === 'true') {
+      setIsAuthenticated(true);
+    }
+  }, []);
 
   const handlePinSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (pinInput === ADMIN_PIN) {
+    if (pinInput.trim() === ADMIN_PIN) {
       setIsAuthenticated(true);
+      sessionStorage.setItem('admin_authenticated', 'true');
       setPinError('');
     } else {
       setPinError('Invalid Passcode. Please try again.');
     }
+  };
+
+  const handleLockDashboard = () => {
+    sessionStorage.removeItem('admin_authenticated');
+    setIsAuthenticated(false);
+    setPinInput('');
   };
 
   useEffect(() => {
@@ -103,21 +119,23 @@ export default function AdminDashboardPage() {
     document.body.removeChild(link);
   };
 
-  // PIN Access Guard
+  // PIN Access Guard Screen
   if (!isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-900 p-4">
         <form onSubmit={handlePinSubmit} className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl border-t-8 border-amber-400 space-y-4">
-          <div className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-900 uppercase">
+          <div className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-900 uppercase tracking-wider">
             Admin Access Restricted
           </div>
           <h2 className="text-xl font-extrabold text-blue-950">Enter Security Passcode</h2>
+          <p className="text-xs text-slate-500">Provide the passcode to access division logs.</p>
           <input
             type="password"
             value={pinInput}
             onChange={(e) => setPinInput(e.target.value)}
             placeholder="••••"
             maxLength={6}
+            autoFocus
             className="w-full rounded-2xl border-2 border-slate-200 p-3 text-center text-2xl font-mono tracking-widest text-blue-950 focus:border-blue-600 focus:outline-none"
           />
           {pinError && <p className="text-xs font-bold text-red-600">{pinError}</p>}
@@ -166,6 +184,14 @@ export default function AdminDashboardPage() {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
               </svg>
               Export CSV
+            </button>
+
+            {/* Lock Button */}
+            <button
+              onClick={handleLockDashboard}
+              className="flex items-center gap-1.5 rounded-2xl bg-blue-950 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider text-amber-300 shadow-md hover:bg-blue-800 active:scale-95 transition border border-blue-800"
+            >
+              🔒 Lock
             </button>
 
             {/* Date Picker Filter */}
