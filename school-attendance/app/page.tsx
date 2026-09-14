@@ -6,7 +6,7 @@ export default function Home() {
       className="flex min-h-screen flex-col items-center justify-center p-6 bg-cover bg-center bg-no-repeat relative"
       style={{ backgroundImage: "url('/bg2.jpg')" }}
     >
-      {/* Dark overlay to ensure text contrast over the background image */}
+      {/* Dark overlay to maintain high text legibility over the background image */}
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
 
       <div className="relative z-10 w-full max-w-md space-y-6 rounded-3xl bg-white/95 p-8 text-center shadow-2xl border-t-8 border-blue-900 backdrop-blur-md">
