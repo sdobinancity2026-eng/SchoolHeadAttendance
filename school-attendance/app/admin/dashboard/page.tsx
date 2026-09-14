@@ -28,10 +28,10 @@ export default function AdminDashboardPage() {
     new Date().toISOString().split('T')[0]
   );
 
-  // Fallback to '1234' if env variable is undefined or empty
+  // Reads from Vercel env variable, with a fallback
   const ADMIN_PIN = (process.env.NEXT_PUBLIC_ADMIN_PIN || '1234').trim();
 
-  // Check if session was already authenticated in this browser tab
+  // Restore authenticated status for current browser tab session
   useEffect(() => {
     const authSession = sessionStorage.getItem('admin_authenticated');
     if (authSession === 'true') {
@@ -186,7 +186,7 @@ export default function AdminDashboardPage() {
               Export CSV
             </button>
 
-            {/* Lock Button */}
+            {/* Lock Dashboard Button */}
             <button
               onClick={handleLockDashboard}
               className="flex items-center gap-1.5 rounded-2xl bg-blue-950 px-3.5 py-2.5 text-xs font-bold uppercase tracking-wider text-amber-300 shadow-md hover:bg-blue-800 active:scale-95 transition border border-blue-800"
