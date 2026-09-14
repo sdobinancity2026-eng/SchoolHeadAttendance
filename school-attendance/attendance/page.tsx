@@ -31,6 +31,15 @@ export default function SchoolHeadAttendancePage() {
     loadDashboardData();
   }, []);
 
+  // Helper to get local date in YYYY-MM-DD format (prevents UTC timezone shift)
+  const getLocalDateString = () => {
+    const d = new Date();
+    const year = d.getFullYear();
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const day = String(d.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+  };
+
   async function loadDashboardData() {
     try {
       setFetchingData(true);
@@ -58,8 +67,8 @@ export default function SchoolHeadAttendancePage() {
         setSchool(profile.schools as unknown as School);
       }
 
-      // 2. Fetch today's attendance log
-      const today = new Date().toISOString().split('T')[0];
+      // 2. Fetch today's attendance log using local date
+      const today = getLocalDateString();
       const { data: log } = await supabase
         .from('attendance_logs')
         .select('*')
@@ -80,6 +89,11 @@ export default function SchoolHeadAttendancePage() {
   const handleAttendanceAction = async (type: 'TIME_IN' | 'TIME_OUT') => {
     if (!school) {
       setStatusMessage('No school record assigned to your profile.');
+      return;
+    }
+
+    if (school.latitude === null || school.longitude === null) {
+      setStatusMessage('School location coordinates are not set by the administrator.');
       return;
     }
 
@@ -104,18 +118,25 @@ export default function SchoolHeadAttendancePage() {
           school.longitude
         );
 
-        const isWithinRange = distanceMeters <= school.allowed_radius_meters;
+        const radius = school.allowed_radius_meters || 200;
+        const isWithinRange = distanceMeters <= radius;
 
         if (!isWithinRange) {
           setStatusMessage(
-            `Location Error: You are ${Math.round(distanceMeters)}m away. You must be within ${school.allowed_radius_meters}m of ${school.name}.`
+            `Location Error: You are ${Math.round(distanceMeters)}m away. You must be within ${radius}m of ${school.name}.`
           );
           setLoading(false);
           return;
         }
 
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          setLoading(false);
+          return;
+        }
+
+        const now = new Date().toISOString();
+        const today = getLocalDateString();
 
         if (type === 'TIME_IN') {
           const { data, error } = await supabase
@@ -124,9 +145,11 @@ export default function SchoolHeadAttendancePage() {
               {
                 user_id: user.id,
                 school_id: school.id,
+                time_in: now,
                 time_in_lat: latitude,
                 time_in_lng: longitude,
                 status: 'ON_SITE',
+                created_at: today,
               },
             ])
             .select()
@@ -142,7 +165,7 @@ export default function SchoolHeadAttendancePage() {
           const { data, error } = await supabase
             .from('attendance_logs')
             .update({
-              time_out: new Date().toISOString(),
+              time_out: now,
               time_out_lat: latitude,
               time_out_lng: longitude,
             })
@@ -178,7 +201,7 @@ export default function SchoolHeadAttendancePage() {
   return (
     <div className="min-h-screen bg-gray-50 px-4 py-8 dark:bg-zinc-900 text-zinc-900 dark:text-zinc-100">
       <div className="mx-auto max-w-md space-y-6">
-        {/* Header Header */}
+        {/* Header */}
         <header className="rounded-2xl bg-blue-600 p-6 text-white shadow-lg dark:bg-blue-700">
           <p className="text-xs font-semibold uppercase tracking-wider opacity-80">School Head Portal</p>
           <h1 className="text-2xl font-bold">{userName || 'School Head'}</h1>
@@ -238,7 +261,9 @@ export default function SchoolHeadAttendancePage() {
             <div className="flex justify-between text-sm border-b pb-2 dark:border-zinc-700">
               <span>Time In:</span>
               <span className="font-semibold">
-                {new Date(activeLog.time_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {activeLog.time_in
+                  ? new Date(activeLog.time_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : '--:--'}
               </span>
             </div>
             <div className="flex justify-between text-sm">
