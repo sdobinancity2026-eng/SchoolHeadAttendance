@@ -1,0 +1,21 @@
+{
+  "name": "DepEd Attendance Monitoring System",
+  "short_name": "DepEd Attendance",
+  "description": "Geofenced Online Attendance Monitoring System for School Heads",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#0f172a",
+  "theme_color": "#1e3a8a",
+  "icons": [
+    {
+      "src": "/DOB_LOGO.png",
+      "sizes": "192x192",
+      "type": "image/png"
+    },
+    {
+      "src": "/DOB_LOGO.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}

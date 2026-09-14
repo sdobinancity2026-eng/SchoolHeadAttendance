@@ -18,13 +18,31 @@ interface AttendanceRecord {
 }
 
 export default function AdminDashboardPage() {
+  const [isAuthenticated, setIsAuthenticated] = useState(false);
+  const [pinInput, setPinInput] = useState('');
+  const [pinError, setPinError] = useState('');
+
   const [logs, setLogs] = useState<AttendanceRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [filterDate, setFilterDate] = useState<string>(
     new Date().toISOString().split('T')[0]
   );
 
+  const ADMIN_PIN = process.env.NEXT_PUBLIC_ADMIN_PIN || '1234';
+
+  const handlePinSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (pinInput === ADMIN_PIN) {
+      setIsAuthenticated(true);
+      setPinError('');
+    } else {
+      setPinError('Invalid Passcode. Please try again.');
+    }
+  };
+
   useEffect(() => {
+    if (!isAuthenticated) return;
+
     fetchLogs(filterDate);
 
     // Set up Realtime Subscription for incoming Time In / Time Out activity
@@ -42,7 +60,7 @@ export default function AdminDashboardPage() {
     return () => {
       supabase.removeChannel(channel);
     };
-  }, [filterDate]);
+  }, [filterDate, isAuthenticated]);
 
   async function fetchLogs(selectedDate: string) {
     setLoading(true);
@@ -56,6 +74,62 @@ export default function AdminDashboardPage() {
       setLogs(data as unknown as AttendanceRecord[]);
     }
     setLoading(false);
+  }
+
+  // Export current table logs to CSV
+  const handleExportCSV = () => {
+    if (!logs || logs.length === 0) {
+      alert(`No attendance records available for ${filterDate} to export.`);
+      return;
+    }
+
+    const headers = ['School Head', 'Assigned School', 'Time In', 'Time Out', 'Status', 'Date Recorded'];
+    const rows = logs.map((log) => [
+      `"${log.profiles?.full_name || 'N/A'}"`,
+      `"${log.schools?.name || 'N/A'}"`,
+      log.time_in ? `"${new Date(log.time_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"` : '"--"',
+      log.time_out ? `"${new Date(log.time_out).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}"` : '"ON DUTY"',
+      `"${log.status}"`,
+      `"${log.created_at}"`
+    ]);
+
+    const csvContent = 'data:text/csv;charset=utf-8,' + [headers.join(','), ...rows.map((e) => e.join(','))].join('\n');
+    const encodedUri = encodeURI(csvContent);
+    const link = document.createElement('a');
+    link.setAttribute('href', encodedUri);
+    link.setAttribute('download', `deped_attendance_${filterDate}.csv`);
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+  };
+
+  // PIN Access Guard
+  if (!isAuthenticated) {
+    return (
+      <div className="flex min-h-screen items-center justify-center bg-slate-900 p-4">
+        <form onSubmit={handlePinSubmit} className="w-full max-w-sm rounded-3xl bg-white p-8 text-center shadow-2xl border-t-8 border-amber-400 space-y-4">
+          <div className="inline-block rounded-full bg-blue-100 px-3 py-1 text-xs font-bold text-blue-900 uppercase">
+            Admin Access Restricted
+          </div>
+          <h2 className="text-xl font-extrabold text-blue-950">Enter Security Passcode</h2>
+          <input
+            type="password"
+            value={pinInput}
+            onChange={(e) => setPinInput(e.target.value)}
+            placeholder="••••"
+            maxLength={6}
+            className="w-full rounded-2xl border-2 border-slate-200 p-3 text-center text-2xl font-mono tracking-widest text-blue-950 focus:border-blue-600 focus:outline-none"
+          />
+          {pinError && <p className="text-xs font-bold text-red-600">{pinError}</p>}
+          <button
+            type="submit"
+            className="w-full rounded-2xl bg-blue-900 py-3 font-bold text-white shadow-lg hover:bg-blue-800 active:scale-95 transition"
+          >
+            Unlock Dashboard
+          </button>
+        </form>
+      </div>
+    );
   }
 
   return (
@@ -82,22 +156,35 @@ export default function AdminDashboardPage() {
             </p>
           </div>
 
-          {/* Date Picker Filter */}
-          <div className="flex items-center gap-2 bg-blue-950/60 p-3 rounded-2xl border border-blue-800">
-            <label htmlFor="filter-date" className="text-xs font-bold text-amber-300 uppercase">
-              Filter Date:
-            </label>
-            <input
-              id="filter-date"
-              type="date"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              className="rounded-xl border border-amber-300/40 bg-white px-3 py-1.5 text-sm font-semibold text-blue-950 focus:outline-none focus:ring-2 focus:ring-amber-400"
-            />
+          <div className="flex flex-wrap items-center gap-3">
+            {/* CSV Export Button */}
+            <button
+              onClick={handleExportCSV}
+              className="flex items-center gap-2 rounded-2xl bg-emerald-600 px-4 py-2.5 text-xs font-bold uppercase tracking-wider text-white shadow-md hover:bg-emerald-700 active:scale-95 transition border border-emerald-400/40"
+            >
+              <svg className="h-4 w-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Export CSV
+            </button>
+
+            {/* Date Picker Filter */}
+            <div className="flex items-center gap-2 bg-blue-950/60 p-2.5 rounded-2xl border border-blue-800">
+              <label htmlFor="filter-date" className="text-xs font-bold text-amber-300 uppercase">
+                Date:
+              </label>
+              <input
+                id="filter-date"
+                type="date"
+                value={filterDate}
+                onChange={(e) => setFilterDate(e.target.value)}
+                className="rounded-xl border border-amber-300/40 bg-white px-3 py-1 text-sm font-semibold text-blue-950 focus:outline-none focus:ring-2 focus:ring-amber-400"
+              />
+            </div>
           </div>
         </div>
 
-        {/* Metric Cards (Blue, Yellow, Red Highlights) */}
+        {/* Metric Cards */}
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
           <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md border-t-4 border-blue-600">
             <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Records Today</p>

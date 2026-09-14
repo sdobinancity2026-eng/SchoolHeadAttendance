@@ -78,9 +78,11 @@ export default function SchoolHeadDashboard() {
           school.longitude
         );
 
-        if (distance > school.allowed_radius_meters) {
+        const allowedRadius = school.allowed_radius_meters || 100;
+
+        if (distance > allowedRadius) {
           setStatusMessage(
-            `LOCATION ERROR: You are ${Math.round(distance)}m away. Must be within ${school.allowed_radius_meters}m of ${school.name}.`
+            `LOCATION ERROR: You are ${Math.round(distance)}m away. Must be within ${allowedRadius}m of ${school.name}.`
           );
           setLoading(false);
           return;
@@ -92,23 +94,39 @@ export default function SchoolHeadDashboard() {
         if (type === 'TIME_IN') {
           const { data, error } = await supabase
             .from('attendance_logs')
-            .insert([{ user_id: user.id, school_id: school.id, time_in_lat: latitude, time_in_lng: longitude, status: 'ON_SITE' }])
+            .insert([{ 
+              user_id: user.id, 
+              school_id: school.id, 
+              time_in: new Date().toISOString(),
+              time_in_lat: latitude, 
+              time_in_lng: longitude, 
+              status: 'ON_SITE',
+              created_at: new Date().toISOString().split('T')[0]
+            }])
             .select().single();
 
           if (!error) {
             setActiveLog(data);
-            setStatusMessage('SUCCESS: Timed In successfully!');
+            setStatusMessage(`SUCCESS: Timed In successfully! (${Math.round(distance)}m from campus)`);
+          } else {
+            setStatusMessage(`Error recording Time In: ${error.message}`);
           }
         } else {
           const { data, error } = await supabase
             .from('attendance_logs')
-            .update({ time_out: new Date().toISOString(), time_out_lat: latitude, time_out_lng: longitude })
+            .update({ 
+              time_out: new Date().toISOString(), 
+              time_out_lat: latitude, 
+              time_out_lng: longitude 
+            })
             .eq('id', activeLog.id)
             .select().single();
 
           if (!error) {
             setActiveLog(data);
-            setStatusMessage('SUCCESS: Timed Out successfully!');
+            setStatusMessage(`SUCCESS: Timed Out successfully! (${Math.round(distance)}m from campus)`);
+          } else {
+            setStatusMessage(`Error recording Time Out: ${error.message}`);
           }
         }
         setLoading(false);
@@ -147,7 +165,7 @@ export default function SchoolHeadDashboard() {
           <p className="text-sm text-slate-200">{school?.name || 'Unassigned School'}</p>
         </header>
 
-        {/* Action Panel (White Card) */}
+        {/* Action Panel */}
         <div className="rounded-3xl bg-white p-6 shadow-md border border-slate-200 text-center space-y-4">
           <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">
             Shift Action
@@ -178,8 +196,10 @@ export default function SchoolHeadDashboard() {
           {/* Alert Message Box */}
           {statusMessage && (
             <div className={`rounded-xl p-3 text-xs font-bold ${
-              statusMessage.startsWith('LOCATION') || statusMessage.startsWith('GPS')
+              statusMessage.startsWith('LOCATION') || statusMessage.startsWith('GPS') || statusMessage.startsWith('Error')
                 ? 'bg-red-100 text-red-800 border border-red-300'
+                : statusMessage.startsWith('SUCCESS')
+                ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'
                 : 'bg-amber-100 text-amber-900 border border-amber-300'
             }`}>
               {statusMessage}
@@ -194,7 +214,9 @@ export default function SchoolHeadDashboard() {
             <div className="flex justify-between">
               <span className="text-slate-500">Time In:</span>
               <span className="font-bold text-blue-700">
-                {new Date(activeLog.time_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                {activeLog.time_in 
+                  ? new Date(activeLog.time_in).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })
+                  : '--'}
               </span>
             </div>
             <div className="flex justify-between">
