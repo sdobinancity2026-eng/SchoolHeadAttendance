@@ -15,4 +15,7 @@ export function getDistanceInMeters(lat1: number, lon1: number, lat2: number, lo
   return R * c; // Distance in meters
 }
 
+// Export alias to match page.tsx import
+export const calculateDistanceMeters = getDistanceInMeters;
+
 export const GEOFENCE_RADIUS_METERS = 100; // Adjust allowed distance threshold here
