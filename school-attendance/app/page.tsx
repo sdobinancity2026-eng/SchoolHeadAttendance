@@ -4,7 +4,7 @@ export default function Home() {
   return (
     <main 
       className="flex min-h-screen flex-col items-center justify-center p-6 bg-cover bg-center bg-no-repeat relative"
-      style={{ backgroundImage: "url('/SdoBuilding-removebg-preview.png')" }}
+      style={{ backgroundImage: "url('/bg2.jpg')" }}
     >
       {/* Dark overlay to ensure text contrast over the background image */}
       <div className="absolute inset-0 bg-slate-900/40 backdrop-blur-xs" />
