@@ -19,24 +19,21 @@ export const viewport: Viewport = {
 export const metadata: Metadata = {
   title: "DepEd Attendance Monitoring System",
   description: "Geofenced Online Attendance Monitoring System for School Heads",
-  manifest: "/manifest.json",
+  manifest: "/manifest.json?v=2", // Force Chrome to reload manifest
   appleWebApp: {
     capable: true,
     statusBarStyle: "default",
     title: "DepEd Attendance",
   },
   icons: {
-    // Browser URL tab icons (Favicon)
     icon: [
       { url: "/DOB_LOGO.png" },
       { url: "/DOB_LOGO.png", type: "image/png" },
     ],
     shortcut: "/DOB_LOGO.png",
-    // Mobile home screen / Apple bookmark icon
     apple: "/SH.png",
   },
 };
-
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html
