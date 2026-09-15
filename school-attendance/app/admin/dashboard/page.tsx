@@ -100,18 +100,28 @@ export default function AdminDashboardPage() {
   }, [filterDate, isAuthenticated]);
 
   async function fetchLogs(selectedDate: string) {
-    setLoadingLogs(true);
-    const { data, error } = await supabase
-      .from('attendance_logs')
-      .select('*, profiles(full_name), schools(name)')
-      .eq('created_at', selectedDate)
-      .order('time_in', { ascending: false });
+  setLoadingLogs(true);
+  const { data, error } = await supabase
+    .from('attendance_logs')
+    .select(`
+      id,
+      time_in,
+      time_out,
+      status,
+      created_at,
+      profiles!attendance_logs_user_id_fkey(full_name),
+      schools!attendance_logs_school_id_fkey(name)
+    `)
+    .eq('created_at', selectedDate)
+    .order('time_in', { ascending: false });
 
-    if (!error && data) {
-      setLogs(data as unknown as AttendanceRecord[]);
-    }
-    setLoadingLogs(false);
+  if (error) {
+    console.error('Error fetching logs:', error.message);
+  } else if (data) {
+    setLogs(data as unknown as AttendanceRecord[]);
   }
+  setLoadingLogs(false);
+}
 
   async function fetchAssignmentsData() {
     setLoadingAssignments(true);
