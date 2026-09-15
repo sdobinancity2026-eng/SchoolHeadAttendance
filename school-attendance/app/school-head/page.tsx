@@ -59,11 +59,17 @@ export default function SchoolHeadDashboard() {
       return;
     }
 
+    // Guard against unconfigured school coordinates in database
+    if (school.latitude === null || school.longitude === null || school.latitude === undefined || school.longitude === undefined) {
+      setStatusMessage(`GEOFENCE ERROR: Location coordinates for ${school.name} have not been configured by the Admin.`);
+      return;
+    }
+
     setLoading(true);
     setStatusMessage('Acquiring high-accuracy GPS coordinates...');
 
     if (!navigator.geolocation) {
-      setStatusMessage('Geolocation is not supported by your browser.');
+      setStatusMessage('Geolocation is not supported by your browser or device.');
       setLoading(false);
       return;
     }
@@ -71,14 +77,17 @@ export default function SchoolHeadDashboard() {
     navigator.geolocation.getCurrentPosition(
       async (position) => {
         const { latitude, longitude } = position.coords;
+
+        // Calculate distance from school center
         const distance = calculateDistanceMeters(
           latitude,
           longitude,
-          school.latitude,
-          school.longitude
+          Number(school.latitude),
+          Number(school.longitude)
         );
 
-        const allowedRadius = school.allowed_radius_meters || 100;
+        // Fallback radius handling to support schema column variations
+        const allowedRadius = Number(school.allowed_radius_meters || school.radius_meters || 100);
 
         if (distance > allowedRadius) {
           setStatusMessage(
@@ -89,7 +98,11 @@ export default function SchoolHeadDashboard() {
         }
 
         const { data: { user } } = await supabase.auth.getUser();
-        if (!user) return;
+        if (!user) {
+          setStatusMessage('Error: User session expired.');
+          setLoading(false);
+          return;
+        }
 
         if (type === 'TIME_IN') {
           const { data, error } = await supabase
@@ -132,7 +145,15 @@ export default function SchoolHeadDashboard() {
         setLoading(false);
       },
       (err) => {
-        setStatusMessage(`GPS Error: ${err.message}`);
+        let errorMsg = err.message;
+        if (err.code === err.PERMISSION_DENIED) {
+          errorMsg = 'GPS Permission denied. Please enable location access in browser settings.';
+        } else if (err.code === err.POSITION_UNAVAILABLE) {
+          errorMsg = 'Location unavailable. Ensure device GPS is turned on.';
+        } else if (err.code === err.TIMEOUT) {
+          errorMsg = 'GPS request timed out. Please try again in an open space.';
+        }
+        setStatusMessage(`GPS Error: ${errorMsg}`);
         setLoading(false);
       },
       { enableHighAccuracy: true, timeout: 15000, maximumAge: 0 }
@@ -196,7 +217,7 @@ export default function SchoolHeadDashboard() {
           {/* Alert Message Box */}
           {statusMessage && (
             <div className={`rounded-xl p-3 text-xs font-bold ${
-              statusMessage.startsWith('LOCATION') || statusMessage.startsWith('GPS') || statusMessage.startsWith('Error')
+              statusMessage.startsWith('LOCATION') || statusMessage.startsWith('GPS') || statusMessage.startsWith('GEOFENCE') || statusMessage.startsWith('Error')
                 ? 'bg-red-100 text-red-800 border border-red-300'
                 : statusMessage.startsWith('SUCCESS')
                 ? 'bg-emerald-100 text-emerald-900 border border-emerald-300'

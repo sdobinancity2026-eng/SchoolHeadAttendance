@@ -29,7 +29,9 @@ interface School {
   school_id_number?: string;
   name: string;
   level?: string;
-  allowed_radius_meters?: number;
+  latitude?: number | null;
+  longitude?: number | null;
+  allowed_radius_meters?: number | null;
 }
 
 export default function AdminDashboardPage() {
@@ -37,7 +39,7 @@ export default function AdminDashboardPage() {
   const [pinInput, setPinInput] = useState<string>('');
   const [pinError, setPinError] = useState<string>('');
 
-  const [activeTab, setActiveTab] = useState<'logs' | 'assignments'>('logs');
+  const [activeTab, setActiveTab] = useState<'logs' | 'assignments' | 'locations'>('logs');
 
   const [logs, setLogs] = useState<AttendanceRecord[]>([]);
   const [profiles, setProfiles] = useState<Profile[]>([]);
@@ -47,6 +49,12 @@ export default function AdminDashboardPage() {
   const [loadingAssignments, setLoadingAssignments] = useState<boolean>(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
   const [searchQuery, setSearchQuery] = useState<string>('');
+
+  // Location Management State
+  const [savingSchoolId, setSavingSchoolId] = useState<string | null>(null);
+  const [locationForms, setLocationForms] = useState<
+    Record<string, { latitude: string; longitude: string; radius: string }>
+  >({});
 
   const [filterDate, setFilterDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -123,11 +131,25 @@ export default function AdminDashboardPage() {
 
     const { data: schoolsData } = await supabase
       .from('schools')
-      .select('id, school_id_number, name, level, allowed_radius_meters')
+      .select('id, school_id_number, name, level, latitude, longitude, allowed_radius_meters')
       .order('name');
 
     if (profilesData) setProfiles(profilesData);
-    if (schoolsData) setSchools(schoolsData as unknown as School[]);
+    if (schoolsData) {
+      const castedSchools = schoolsData as unknown as School[];
+      setSchools(castedSchools);
+
+      // Initialize location forms state
+      const initialForms: Record<string, { latitude: string; longitude: string; radius: string }> = {};
+      castedSchools.forEach((s) => {
+        initialForms[s.id] = {
+          latitude: s.latitude !== null && s.latitude !== undefined ? String(s.latitude) : '',
+          longitude: s.longitude !== null && s.longitude !== undefined ? String(s.longitude) : '',
+          radius: s.allowed_radius_meters !== null && s.allowed_radius_meters !== undefined ? String(s.allowed_radius_meters) : '100',
+        };
+      });
+      setLocationForms(initialForms);
+    }
     setLoadingAssignments(false);
   }
 
@@ -149,6 +171,39 @@ export default function AdminDashboardPage() {
       );
     }
     setUpdatingId(null);
+  };
+
+  // Location / Geofence Update Handler
+  const handleUpdateLocation = async (schoolId: string) => {
+    setSavingSchoolId(schoolId);
+    const formData = locationForms[schoolId];
+
+    const lat = formData?.latitude ? parseFloat(formData.latitude) : null;
+    const lng = formData?.longitude ? parseFloat(formData.longitude) : null;
+    const radius = formData?.radius ? parseFloat(formData.radius) : 100;
+
+    const { error } = await supabase
+      .from('schools')
+      .update({
+        latitude: lat,
+        longitude: lng,
+        allowed_radius_meters: radius,
+      })
+      .eq('id', schoolId);
+
+    if (error) {
+      alert(`Failed to update school geofence: ${error.message}`);
+    } else {
+      alert('School location and radius updated successfully.');
+      setSchools((prev) =>
+        prev.map((s) =>
+          s.id === schoolId
+            ? { ...s, latitude: lat, longitude: lng, allowed_radius_meters: radius }
+            : s
+        )
+      );
+    }
+    setSavingSchoolId(null);
   };
 
   const handleExportCSV = () => {
@@ -180,6 +235,11 @@ export default function AdminDashboardPage() {
   const filteredProfiles = profiles.filter((profile) =>
     profile.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
     profile.designation?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  const filteredSchools = schools.filter((school) =>
+    school.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    school.school_id_number?.toLowerCase().includes(searchQuery.toLowerCase())
   );
 
   if (!isAuthenticated) {
@@ -232,7 +292,7 @@ export default function AdminDashboardPage() {
               School Heads Live Monitoring
             </h1>
             <p className="text-sm text-slate-200 mt-1">
-              Real-time attendance logs and manual school assignments
+              Real-time attendance logs, assignments, and geofence coordinates
             </p>
           </div>
 
@@ -267,7 +327,7 @@ export default function AdminDashboardPage() {
         </div>
 
         {/* Tab Navigation */}
-        <div className="flex gap-2 rounded-2xl bg-slate-200 p-1.5 w-fit font-bold text-xs">
+        <div className="flex flex-wrap gap-2 rounded-2xl bg-slate-200 p-1.5 w-fit font-bold text-xs">
           <button
             onClick={() => setActiveTab('logs')}
             className={`rounded-xl px-4 py-2.5 transition ${
@@ -287,6 +347,16 @@ export default function AdminDashboardPage() {
             }`}
           >
             🏫 Assign School Heads ({profiles.length})
+          </button>
+          <button
+            onClick={() => setActiveTab('locations')}
+            className={`rounded-xl px-4 py-2.5 transition ${
+              activeTab === 'locations'
+                ? 'bg-blue-900 text-white shadow'
+                : 'text-slate-600 hover:text-blue-900'
+            }`}
+          >
+            📍 School Geofences ({schools.length})
           </button>
         </div>
 
@@ -375,7 +445,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
           </>
-        ) : (
+        ) : activeTab === 'assignments' ? (
           /* School Head Assignment Management Tab */
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md p-6 space-y-4">
             <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
@@ -458,6 +528,123 @@ export default function AdminDashboardPage() {
                         </td>
                       </tr>
                     ))
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        ) : (
+          /* Step 3: Admin Location Manager Tab */
+          <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md p-6 space-y-4">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-extrabold text-blue-950">School Location & Geofence Manager</h2>
+                <p className="text-xs text-slate-500">
+                  Configure GPS coordinates (Latitude/Longitude) and allowed perimeter radius (meters) for attendance validation.
+                </p>
+              </div>
+
+              {/* Search Bar */}
+              <input
+                type="text"
+                placeholder="Search School..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium focus:border-blue-600 focus:outline-none w-full sm:w-64"
+              />
+            </div>
+
+            <div className="overflow-x-auto">
+              <table className="w-full text-left border-collapse text-sm">
+                <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 text-xs uppercase font-bold">
+                  <tr>
+                    <th className="p-3">School Info</th>
+                    <th className="p-3">Latitude</th>
+                    <th className="p-3">Longitude</th>
+                    <th className="p-3">Radius (Meters)</th>
+                    <th className="p-3 text-right">Action</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-100">
+                  {loadingAssignments ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-slate-500 animate-pulse">
+                        Loading Schools Location Data...
+                      </td>
+                    </tr>
+                  ) : filteredSchools.length === 0 ? (
+                    <tr>
+                      <td colSpan={5} className="p-6 text-center text-slate-500">
+                        No matching school records found.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredSchools.map((school) => {
+                      const form = locationForms[school.id] || { latitude: '', longitude: '', radius: '100' };
+                      return (
+                        <tr key={school.id} className="hover:bg-slate-50">
+                          <td className="p-3 font-bold text-blue-950">
+                            <div>{school.name}</div>
+                            <div className="text-xs font-normal text-slate-500">
+                              ID: {school.school_id_number || 'N/A'} | Level: {school.level || 'N/A'}
+                            </div>
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="e.g. 14.3412"
+                              value={form.latitude}
+                              onChange={(e) =>
+                                setLocationForms((prev) => ({
+                                  ...prev,
+                                  [school.id]: { ...prev[school.id], latitude: e.target.value },
+                                }))
+                              }
+                              className="w-32 rounded-xl border border-slate-300 p-2 text-xs font-mono font-semibold focus:border-blue-600 focus:outline-none"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              step="any"
+                              placeholder="e.g. 121.0823"
+                              value={form.longitude}
+                              onChange={(e) =>
+                                setLocationForms((prev) => ({
+                                  ...prev,
+                                  [school.id]: { ...prev[school.id], longitude: e.target.value },
+                                }))
+                              }
+                              className="w-32 rounded-xl border border-slate-300 p-2 text-xs font-mono font-semibold focus:border-blue-600 focus:outline-none"
+                            />
+                          </td>
+                          <td className="p-3">
+                            <input
+                              type="number"
+                              placeholder="100"
+                              value={form.radius}
+                              onChange={(e) =>
+                                setLocationForms((prev) => ({
+                                  ...prev,
+                                  [school.id]: { ...prev[school.id], radius: e.target.value },
+                                }))
+                              }
+                              className="w-24 rounded-xl border border-slate-300 p-2 text-xs font-mono font-semibold focus:border-blue-600 focus:outline-none"
+                            />
+                          </td>
+                          <td className="p-3 text-right">
+                            <button
+                              disabled={savingSchoolId === school.id}
+                              onClick={() => handleUpdateLocation(school.id)}
+                              className="rounded-xl bg-blue-900 px-3.5 py-2 text-xs font-bold text-white shadow hover:bg-blue-800 disabled:opacity-50 transition"
+                            >
+                              {savingSchoolId === school.id ? 'Saving...' : 'Save Geofence'}
+                            </button>
+                          </td>
+                        </tr>
+                      );
+                    })
                   )}
                 </tbody>
               </table>
