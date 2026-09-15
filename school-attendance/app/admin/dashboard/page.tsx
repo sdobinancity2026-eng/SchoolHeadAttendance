@@ -46,6 +46,7 @@ export default function AdminDashboardPage() {
   const [loadingLogs, setLoadingLogs] = useState<boolean>(true);
   const [loadingAssignments, setLoadingAssignments] = useState<boolean>(true);
   const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
 
   const [filterDate, setFilterDate] = useState<string>(
     new Date().toISOString().split('T')[0]
@@ -100,28 +101,18 @@ export default function AdminDashboardPage() {
   }, [filterDate, isAuthenticated]);
 
   async function fetchLogs(selectedDate: string) {
-  setLoadingLogs(true);
-  const { data, error } = await supabase
-    .from('attendance_logs')
-    .select(`
-      id,
-      time_in,
-      time_out,
-      status,
-      created_at,
-      profiles!attendance_logs_user_id_fkey(full_name),
-      schools!attendance_logs_school_id_fkey(name)
-    `)
-    .eq('created_at', selectedDate)
-    .order('time_in', { ascending: false });
+    setLoadingLogs(true);
+    const { data, error } = await supabase
+      .from('attendance_logs')
+      .select('*, profiles(full_name), schools(name)')
+      .eq('created_at', selectedDate)
+      .order('time_in', { ascending: false });
 
-  if (error) {
-    console.error('Error fetching logs:', error.message);
-  } else if (data) {
-    setLogs(data as unknown as AttendanceRecord[]);
+    if (!error && data) {
+      setLogs(data as unknown as AttendanceRecord[]);
+    }
+    setLoadingLogs(false);
   }
-  setLoadingLogs(false);
-}
 
   async function fetchAssignmentsData() {
     setLoadingAssignments(true);
@@ -140,6 +131,7 @@ export default function AdminDashboardPage() {
     setLoadingAssignments(false);
   }
 
+  // Manual Assignment Handler
   const handleAssignSchool = async (profileId: string, newSchoolId: string) => {
     setUpdatingId(profileId);
     const schoolIdToSave = newSchoolId === '' ? null : newSchoolId;
@@ -185,6 +177,11 @@ export default function AdminDashboardPage() {
     document.body.removeChild(link);
   };
 
+  const filteredProfiles = profiles.filter((profile) =>
+    profile.full_name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+    profile.designation?.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
   if (!isAuthenticated) {
     return (
       <div className="flex min-h-screen items-center justify-center bg-slate-900 p-4">
@@ -193,7 +190,7 @@ export default function AdminDashboardPage() {
             Admin Access Restricted
           </div>
           <h2 className="text-xl font-extrabold text-blue-950">Enter Security Passcode</h2>
-          <p className="text-xs text-slate-500">Provide the passcode to access division logs.</p>
+          <p className="text-xs text-slate-500">Provide passcode to manage division logs and assignments.</p>
           <input
             type="password"
             value={pinInput}
@@ -235,7 +232,7 @@ export default function AdminDashboardPage() {
               School Heads Live Monitoring
             </h1>
             <p className="text-sm text-slate-200 mt-1">
-              Real-time attendance logs and school assignments
+              Real-time attendance logs and manual school assignments
             </p>
           </div>
 
@@ -295,7 +292,7 @@ export default function AdminDashboardPage() {
 
         {activeTab === 'logs' ? (
           <>
-            {/* Metric Cards (Updated without CSS conflicts) */}
+            {/* Metric Cards */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md border-t-4 border-t-blue-600">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Records Today</p>
@@ -381,11 +378,22 @@ export default function AdminDashboardPage() {
         ) : (
           /* School Head Assignment Management Tab */
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md p-6 space-y-4">
-            <div>
-              <h2 className="text-lg font-extrabold text-blue-950">School Head Assignments</h2>
-              <p className="text-xs text-slate-500">
-                Select a campus from the dropdown list to map each School Head or Principal to their DepEd School ID.
-              </p>
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <div>
+                <h2 className="text-lg font-extrabold text-blue-950">Manual School Head Assignments</h2>
+                <p className="text-xs text-slate-500">
+                  Select a school from the dropdown list to assign or reassign registered School Heads.
+                </p>
+              </div>
+
+              {/* Search Bar */}
+              <input
+                type="text"
+                placeholder="Search School Head..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="rounded-xl border border-slate-300 px-3 py-2 text-xs font-medium focus:border-blue-600 focus:outline-none w-full sm:w-64"
+              />
             </div>
 
             <div className="overflow-x-auto">
@@ -394,32 +402,32 @@ export default function AdminDashboardPage() {
                   <tr>
                     <th className="p-3">School Head Name</th>
                     <th className="p-3">Designation</th>
-                    <th className="p-3">Assigned School & ID</th>
+                    <th className="p-3">Assigned School & DepEd ID</th>
                     <th className="p-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {loadingAssignments ? (
                     <tr>
-                      <td colSpan={4} className="p-6 text-center text-slate-500">
+                      <td colSpan={4} className="p-6 text-center text-slate-500 animate-pulse">
                         Loading School Heads list...
                       </td>
                     </tr>
-                  ) : profiles.length === 0 ? (
+                  ) : filteredProfiles.length === 0 ? (
                     <tr>
                       <td colSpan={4} className="p-6 text-center text-slate-500">
-                        No registered School Head profiles found.
+                        No matching School Head profiles found.
                       </td>
                     </tr>
                   ) : (
-                    profiles.map((profile) => (
+                    filteredProfiles.map((profile) => (
                       <tr key={profile.id} className="hover:bg-slate-50">
                         <td className="p-3 font-bold text-blue-950">
                           {profile.full_name || 'Unnamed Profile'}
                         </td>
                         <td className="p-3">
                           <span className="inline-block rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
-                            {profile.designation || 'PRINCIPAL / TIC'}
+                            {profile.designation || 'SCHOOL HEAD'}
                           </span>
                         </td>
                         <td className="p-3">
