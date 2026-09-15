@@ -20,13 +20,16 @@ interface AttendanceRecord {
 interface Profile {
   id: string;
   full_name: string;
+  designation?: string;
   school_id: string | null;
 }
 
 interface School {
   id: string;
+  school_id_number?: string;
   name: string;
-  allowed_radius_meters: number;
+  level?: string;
+  allowed_radius_meters?: number;
 }
 
 export default function AdminDashboardPage() {
@@ -114,12 +117,12 @@ export default function AdminDashboardPage() {
     setLoadingAssignments(true);
     const { data: profilesData } = await supabase
       .from('profiles')
-      .select('id, full_name, school_id')
+      .select('id, full_name, designation, school_id')
       .order('full_name');
 
     const { data: schoolsData } = await supabase
       .from('schools')
-      .select('id, name, allowed_radius_meters')
+      .select('id, school_id_number, name, level, allowed_radius_meters')
       .order('name');
 
     if (profilesData) setProfiles(profilesData);
@@ -127,7 +130,6 @@ export default function AdminDashboardPage() {
     setLoadingAssignments(false);
   }
 
-  // Update School Head Assignment in Supabase
   const handleAssignSchool = async (profileId: string, newSchoolId: string) => {
     setUpdatingId(profileId);
     const schoolIdToSave = newSchoolId === '' ? null : newSchoolId;
@@ -257,7 +259,7 @@ export default function AdminDashboardPage() {
           </div>
         </div>
 
-        {/* Tab Selector */}
+        {/* Tab Navigation */}
         <div className="flex gap-2 rounded-2xl bg-slate-200 p-1.5 w-fit font-bold text-xs">
           <button
             onClick={() => setActiveTab('logs')}
@@ -283,7 +285,7 @@ export default function AdminDashboardPage() {
 
         {activeTab === 'logs' ? (
           <>
-           {/* Metric Cards */}
+            {/* Metric Cards (Updated without CSS conflicts) */}
             <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
               <div className="rounded-3xl border border-slate-200 bg-white p-6 shadow-md border-t-4 border-t-blue-600">
                 <p className="text-xs font-bold text-slate-400 uppercase tracking-wider">Total Records Today</p>
@@ -305,7 +307,7 @@ export default function AdminDashboardPage() {
               </div>
             </div>
 
-            {/* Attendance Table */}
+            {/* Attendance Logs Table */}
             <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md">
               <div className="overflow-x-auto">
                 <table className="w-full text-left border-collapse text-sm">
@@ -367,12 +369,12 @@ export default function AdminDashboardPage() {
             </div>
           </>
         ) : (
-          /* School Head Assignment Table */
+          /* School Head Assignment Management Tab */
           <div className="overflow-hidden rounded-3xl border border-slate-200 bg-white shadow-md p-6 space-y-4">
             <div>
               <h2 className="text-lg font-extrabold text-blue-950">School Head Assignments</h2>
               <p className="text-xs text-slate-500">
-                Select a school from the dropdown to automatically bind a School Head to their designated campus.
+                Select a campus from the dropdown list to map each School Head or Principal to their DepEd School ID.
               </p>
             </div>
 
@@ -381,38 +383,46 @@ export default function AdminDashboardPage() {
                 <thead className="bg-slate-100 border-b border-slate-200 text-slate-600 text-xs uppercase font-bold">
                   <tr>
                     <th className="p-3">School Head Name</th>
-                    <th className="p-3">Assigned School</th>
+                    <th className="p-3">Designation</th>
+                    <th className="p-3">Assigned School & ID</th>
                     <th className="p-3">Status</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {loadingAssignments ? (
                     <tr>
-                      <td colSpan={3} className="p-6 text-center text-slate-500">
+                      <td colSpan={4} className="p-6 text-center text-slate-500">
                         Loading School Heads list...
                       </td>
                     </tr>
                   ) : profiles.length === 0 ? (
                     <tr>
-                      <td colSpan={3} className="p-6 text-center text-slate-500">
+                      <td colSpan={4} className="p-6 text-center text-slate-500">
                         No registered School Head profiles found.
                       </td>
                     </tr>
                   ) : (
                     profiles.map((profile) => (
                       <tr key={profile.id} className="hover:bg-slate-50">
-                        <td className="p-3 font-bold text-blue-950">{profile.full_name || 'Unnamed Profile'}</td>
+                        <td className="p-3 font-bold text-blue-950">
+                          {profile.full_name || 'Unnamed Profile'}
+                        </td>
+                        <td className="p-3">
+                          <span className="inline-block rounded-md bg-slate-200 px-2 py-0.5 text-xs font-semibold text-slate-700">
+                            {profile.designation || 'PRINCIPAL / TIC'}
+                          </span>
+                        </td>
                         <td className="p-3">
                           <select
                             value={profile.school_id || ''}
                             disabled={updatingId === profile.id}
                             onChange={(e) => handleAssignSchool(profile.id, e.target.value)}
-                            className="w-full max-w-md rounded-xl border border-slate-300 bg-slate-50 p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
+                            className="w-full max-w-lg rounded-xl border border-slate-300 bg-slate-50 p-2 text-xs font-semibold text-slate-800 focus:outline-none focus:ring-2 focus:ring-blue-600 disabled:opacity-50"
                           >
                             <option value="">-- Unassigned --</option>
                             {schools.map((s) => (
                               <option key={s.id} value={s.id}>
-                                {s.name} ({s.allowed_radius_meters || 200}m radius)
+                                [{s.school_id_number || 'NO ID'}] {s.name} ({s.level || 'ELEM'})
                               </option>
                             ))}
                           </select>
