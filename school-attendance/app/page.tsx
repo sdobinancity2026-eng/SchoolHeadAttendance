@@ -40,6 +40,17 @@ export default function Home() {
           >
             Admin Dashboard
           </Link>
+
+          {/* Signup Link for unregistered School Heads */}
+          <p className="pt-2 text-xs font-medium text-slate-600">
+            Don't have an account?{' '}
+            <Link
+              href="/signup"
+              className="font-bold text-blue-700 hover:text-blue-900 hover:underline transition"
+            >
+              SignUp Here!
+            </Link>
+          </p>
         </div>
 
       </div>
